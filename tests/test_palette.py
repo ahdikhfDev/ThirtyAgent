@@ -456,8 +456,31 @@ def test_body_height_never_exceeds_screen(monkeypatch):
         float_ = layout.container.floats[0]
         box = float_.content
         body = box.get_children()[-1]
-        height = body.height() if callable(body.height) else body.height
-        assert height <= max(1, rows - 3), f"body {height} cannot fit in {rows} rows"
+        dim = body.height()
+        # the popup fails when sum(children.min) > space, so min must stay tiny
+        assert dim.min == 1, f"body min={dim.min} can overflow the screen"
+        assert dim.max <= max(1, rows - 1), f"body max={dim.max} past a {rows}-row screen"
+        assert dim.preferred <= dim.max
+
+
+def test_float_has_no_bottom_anchor(monkeypatch):
+    """THE root cause of the persistent 'Window too small' on /skills.
+
+    prompt_toolkit treats top+bottom together as 'span the whole screen'
+    (containers.py: height = write_position.height - top - bottom). The popup
+    content is ~25 rows, so on a 50-row terminal the float demanded 49 rows it
+    could not fill and prompt_toolkit replaced it with the too-small placeholder.
+    Anchoring only to top lets it size to its content.
+    """
+    from minicode.palette import Entry, PaletteState, _layout_for
+
+    items = [Entry(text="/c", group="G", label="x")]
+    monkeypatch.setattr("minicode.palette._term_columns", lambda *a, **k: 120)
+    monkeypatch.setattr("minicode.palette._term_rows", lambda *a, **k: 50)
+    fl = _layout_for(items, "Skills", PaletteState(items=items)).container.floats[0]
+    assert fl.top is not None, "the popup should still sit below the top edge"
+    assert fl.bottom is None, "bottom= makes the float claim the whole screen"
+    assert fl.height is None, "height= together with bottom has the same effect"
 
 
 def test_float_has_either_width_or_left_right_never_both(monkeypatch):

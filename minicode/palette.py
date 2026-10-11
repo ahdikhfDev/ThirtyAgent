@@ -10,6 +10,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.containers import Float, FloatContainer
 from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.layout.dimension import Dimension
 
 from .theme import PTK_STYLE, group_class
 
@@ -192,16 +193,23 @@ def _layout_for(items: list[Entry], title: str, state: PaletteState) -> Layout:
         )
 
     def searchbar() -> FormattedText:
-        return _ft([("class:cursor", " /" + state.needle + "▏")])
+        return _ft([("class:cursor", " /" + state.needle + "â–")])
 
     def body() -> FormattedText:
         return _ft(render(state, width, title=title))
 
-    def body_height() -> int:
-        # top(1) + header(1) + searchbar(1) + 1 slack; without the slack the
-        # float claims the last line and prompt_toolkit raises "Window too small"
+    def body_height() -> Dimension:
+        # prompt_toolkit fails the whole popup when the children's *minimum*
+        # heights exceed the space (containers.py: sum_dimensions.min > height).
+        # min=1 makes that impossible however the terminal size is reported;
+        # preferred still tracks the filtered list and max keeps the box from
+        # running past the bottom of the screen.
         room = max(1, _term_rows() - 4)
-        return max(1, min(row_count(render(state, width, title=title)), room))
+        return Dimension(
+            min=1,
+            max=room,
+            preferred=min(row_count(render(state, width, title=title)), room),
+        )
 
     box = HSplit(
         [
@@ -234,7 +242,6 @@ def _layout_for(items: list[Entry], title: str, state: PaletteState) -> Layout:
                     top=1,
                     left=inset,
                     right=inset,
-                    bottom=0,
                 )
             ],
         )
