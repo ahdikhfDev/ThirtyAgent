@@ -45,16 +45,45 @@ def available() -> list[str]:
     return out
 
 
+def _auto_install(mod_name: str) -> bool:
+    """Install a provider's SDK into the running venv, so the user does not have
+    to stop and run `uv sync --extra ...` themselves. Best effort; returns
+    whether it worked.
+    """
+    import subprocess
+    import sys
+
+    for cmd in (
+        [sys.executable, "-m", "pip", "install", "-q", mod_name],
+        ["uv", "pip", "install", "-q", mod_name],
+    ):
+        try:
+            proc = subprocess.run(cmd, capture_output=True, timeout=300, check=False)
+            if proc.returncode == 0:
+                return True
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return False
+
+
 def _build_one(name: str) -> object:
     mod_name, cls_name, env_var = PROVIDERS[name]
     try:
         mod = __import__(mod_name, fromlist=[cls_name])
-    except ImportError as e:
-        raise SandboxUnavailable(
-            f"sandbox {name!r} needs the '{mod_name}' package.\n"
-            f"  install:  uv sync --extra sandbox-{name}   (or: uv pip install {mod_name})\n"
-            f"  then set {env_var} in .env"
-        ) from e
+    except ImportError:
+        if _auto_install(mod_name):
+            try:
+                mod = __import__(mod_name, fromlist=[cls_name])
+            except ImportError:
+                mod = None
+        else:
+            mod = None
+        if mod is None:
+            raise SandboxUnavailable(
+                f"sandbox {name!r} needs the '{mod_name}' package.\n"
+                f"  install:  uv sync --extra sandbox-{name}   (or: uv pip install {mod_name})\n"
+                f"  then set {env_var} in .env"
+            ) from None
     if not hasattr(mod, cls_name):
         raise SandboxUnavailable(
             f"{mod_name} is installed but has no {cls_name!r}; the {name} API may have changed."
@@ -74,10 +103,14 @@ def build(name: str, setup_script: str | None = None) -> object:
     factory: Callable[[], object] = _build_one(name)
     try:
         backend = factory()
-    except TypeError:
-        # providers whose client needs explicit construction vary; surface it
+    except SandboxUnavailable:
+        raise
+    except Exception as e:  # noqa: BLE001 - providers raise their own types
+        # Missing/bad API key, quota, wrong region... all arrive as the
+        # provider's own exception, which means nothing to the user.
         raise SandboxUnavailable(
-            f"could not construct the {name} sandbox; check its API key env var ({PROVIDERS[name][2]})"
+            f"could not start the {name} sandbox: {type(e).__name__}: {e}\n"
+            f"  check {PROVIDERS[name][2]} in .env"
         ) from None
     if setup_script:
         try:

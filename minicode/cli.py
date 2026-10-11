@@ -1308,6 +1308,11 @@ def run(
 ) -> None:
     """Coding agent in your terminal."""
     use_utf8_console()
+    if not sandbox:
+        # set SANDBOX=modal once in .env and the flag is never needed again
+        from .config import _pick
+
+        sandbox = _pick("THIRTYAGENT_SANDBOX", "SANDBOX")
     root = cwd.resolve()
     # Import cost plus building the model and opening the checkpointer takes
     # ~5s; without this line the terminal just sits blank and the first thing the
