@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.db
+_probe*.py
+_probe_root/
+# scratch/debug artifacts
+large_tool_results/
+minicode/out.txt
+minicode/p*.txt
+minicode/part.txt
