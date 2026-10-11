@@ -23,6 +23,8 @@ class FakeSession:
         self.id = "s1"
         self.approve = False
         self.plan_mode = False
+        self.sandbox = ""
+        self.sandbox_setup = ""
         self.model_spec = {"model": "m", "alias": "a", "base_url": "u"}
         self.mcp_tools = []
         self.mcp_dead = []

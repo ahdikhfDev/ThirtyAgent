@@ -23,6 +23,21 @@ MINICODE_MODEL=your-model-id
 
 `.env` is git-ignored; never commit real credentials.
 
+## Remote sandbox (recommended)
+
+By default the agent runs shell commands on your host with no isolation. To run
+them somewhere else instead:
+
+```powershell
+uv sync --extra sandbox-modal      # daytona | modal | runloop | e2b | vercel | langsmith
+$env:MODAL_TOKEN_ID = "..."
+uv run thirtyagent --sandbox modal --sandbox-setup ./setup.sh
+```
+
+The agent's `execute`, file tools and git all run inside the remote sandbox; your
+machine only holds the API key. See the
+[LangChain sandbox docs](https://docs.langchain.com/oss/python/deepagents/sandboxes).
+
 ## Keys
 
 | Key | Action |

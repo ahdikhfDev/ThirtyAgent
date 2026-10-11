@@ -11,7 +11,7 @@ from minicode.usage import Usage
 
 
 class FakeSession:
-    def __init__(self, root, session_id, store, *, approve):
+    def __init__(self, root, session_id, store, *, approve, sandbox="", sandbox_setup=""):
         self.root = root
         self.id = session_id
         self.plan_mode = False
@@ -21,6 +21,7 @@ class FakeSession:
         self.store = store
         self.usage = Usage()
         self.max_model_calls = None
+        self.sandbox = sandbox
         self.redact_pii = False
         self.rubric = None
         self.last_prompt = None

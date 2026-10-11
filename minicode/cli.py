@@ -17,6 +17,7 @@ from rich.text import Text
 
 from .agent import build_agent, find_memory
 from .redact import SecretRedactor
+from .sandbox import SandboxUnavailable
 from .sessions import (
     Store,
     derive_title,
@@ -396,13 +397,25 @@ def _ask_decisions(payload: dict) -> dict:
 class Session:
     """Holds the live agent plus the sqlite checkpointer it shares."""
 
-    def __init__(self, root: Path, session_id: str, store: Store, *, approve: bool, model=None):
+    def __init__(
+        self,
+        root: Path,
+        session_id: str,
+        store: Store,
+        *,
+        approve: bool,
+        model=None,
+        sandbox: str = "",
+        sandbox_setup: str = "",
+    ):
         self.root = root
         self.id = session_id
         self.store = store
         self.approve = approve
         self.plan_mode = False
         self.model = model
+        self.sandbox = sandbox
+        self.sandbox_setup = sandbox_setup
         self.mcp_tools: list = []
         self.mcp_dead: list[str] = []
         self.usage = Usage()
@@ -436,6 +449,8 @@ class Session:
             max_model_calls=self.max_model_calls,
             redact_pii=self.redact_pii,
             rubric=self.rubric,
+            sandbox=self.sandbox,
+            sandbox_setup=self.sandbox_setup,
         )
 
     def try_rebuild(self) -> bool:
@@ -447,6 +462,11 @@ class Session:
         try:
             self.rebuild()
             return True
+        except SandboxUnavailable as e:
+            # A missing sandbox package must print the install hint, not a
+            # traceback from deepagents internals.
+            console.print(Text(f"  sandbox unavailable\n  {e}", style="bad"))
+            raise typer.Exit(code=2) from None
         except (SystemExit, ValueError, TypeError, AttributeError, KeyError, OSError) as e:
             detail = (str(e) or type(e).__name__).strip().splitlines()[0][:110]
             console.print(Text(f"  cannot apply that: {detail}", style="bad"))
@@ -763,6 +783,8 @@ def _header(session: Session) -> None:
     head.append(str(session.root), style="muted")
 
     badges = []
+    if getattr(session, "sandbox", ""):
+        badges.append((f"sandbox:{session.sandbox}", "ok"))
     if session.plan_mode:
         badges.append(("PLAN MODE", "accent"))
     if tracing_status():
@@ -1277,6 +1299,12 @@ def run(
         False, "--approve", help="Pause and ask before every write/edit/delete/shell command."
     ),
     resume: bool = typer.Option(False, "--resume", "-c", help="Continue the latest session here."),
+    sandbox: str = typer.Option(
+        "", "--sandbox", help="Run the agent in a remote sandbox: daytona|modal|runloop|e2b|vercel|langsmith."
+    ),
+    sandbox_setup: str = typer.Option(
+        "", "--sandbox-setup", help="Shell script run once inside the sandbox at creation."
+    ),
 ) -> None:
     """Coding agent in your terminal."""
     use_utf8_console()
@@ -1289,7 +1317,14 @@ def run(
     session_id = (store.latest(root) if resume else None) or new_session_id()
     store.create(session_id, root, title=derive_title(task) if task else "")
 
-    session = Session(root, session_id, store, approve=approve)
+    session = Session(
+        root,
+        session_id,
+        store,
+        approve=approve,
+        sandbox=sandbox,
+        sandbox_setup=sandbox_setup,
+    )
     session.mcp_tools, session.mcp_dead = _load_mcp()
     session.try_rebuild()
     _header(session)

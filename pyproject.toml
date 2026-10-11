@@ -20,6 +20,16 @@ minicode = "minicode.cli:app"
 [dependency-groups]
 dev = ["pytest>=8"]
 
+[project.optional-dependencies]
+# versions unpinned on purpose: each sandbox SDK ships fast and pins fight with
+# the agent runtime. Install just the one you use.
+sandbox-daytona = ["daytona"]
+sandbox-modal = ["modal"]
+sandbox-runloop = ["runloop"]
+sandbox-e2b = ["e2b-code-interpreter"]
+sandbox-vercel = ["vercel"]
+sandbox-langsmith = ["langsmith"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

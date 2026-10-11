@@ -97,6 +97,8 @@ def build_agent(
     max_model_calls: int | None = None,
     redact_pii: bool = False,
     rubric: str | None = None,
+    sandbox: str | None = None,
+    sandbox_setup: str | None = None,
 ):
     from deepagents import create_deep_agent
     from deepagents.backends import FilesystemBackend, LocalShellBackend
@@ -144,7 +146,14 @@ def build_agent(
             )
         )
     else:
-        backend = LocalShellBackend(root_dir=str(root_dir), inherit_env=True)
+        if sandbox:
+            # Remote sandbox: the agent's shell and filesystem live off-box, so
+            # a stray `rm -rf` or a prompt injection cannot touch the host.
+            from .sandbox import build as build_sandbox
+
+            backend = build_sandbox(sandbox, sandbox_setup)
+        else:
+            backend = LocalShellBackend(root_dir=str(root_dir), inherit_env=True)
 
     if user_roots:
         # User-scope skills live outside --cwd; route them so the agent can read
