@@ -176,7 +176,7 @@ def build_agent(
 
     memory = find_memory(root_dir)
 
-    return create_deep_agent(
+    agent = create_deep_agent(
         model=model or build_model(model_alias),
         system_prompt=PLAN_PROMPT if plan_mode else SYSTEM_PROMPT,
         backend=backend,
@@ -187,3 +187,7 @@ def build_agent(
         tools=extra_tools,
         **kwargs,
     )
+    # Hang the backend off the agent so Session.close() can shut a remote
+    # sandbox down; a sandbox left running bills by the second.
+    agent.backend = backend
+    return agent

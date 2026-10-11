@@ -474,6 +474,14 @@ class Session:
             return False
 
     def close(self):
+        # A remote sandbox bills per second while it runs; leaving it up would
+        # charge the user for an idle VM. Tear it down before the sqlite stack.
+        backend = getattr(getattr(self, "agent", None), "backend", None)
+        if backend is not None and hasattr(backend, "kill"):
+            try:
+                backend.kill()
+            except Exception:  # noqa: BLE001 - teardown never raises upward
+                logging.getLogger(__name__).debug("sandbox teardown failed")
         self._stack.close()
 
 
