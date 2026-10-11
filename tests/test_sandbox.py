@@ -87,7 +87,7 @@ class _BadBackend:
 
 
 class _GoodBackend:
-    def execute(self, cmd):
+    def execute(self, cmd, timeout=None):
         _RAN.append(cmd)
         return "ok"
 

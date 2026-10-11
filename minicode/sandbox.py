@@ -51,9 +51,32 @@ def _auto_install(pkg: str) -> bool:
     return False
 
 
+def _load_dotenv_for(env_var: str) -> None:
+    """Export one secret from .env into os.environ for the provider SDK."""
+    import os
+    from pathlib import Path
+
+    if os.environ.get(env_var):
+        return
+    for env_file in (Path.cwd() / ".env",):
+        if not env_file.is_file():
+            continue
+        for line in env_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            if key.strip() == env_var:
+                os.environ[env_var] = val.strip().strip("\"'")
+                return
+
+
 def _import_provider(name: str):
     """Import the provider module, installing its package first if needed."""
     pkg, mod_name, cls_name, env_var = PROVIDERS[name]
+    # provider SDKs read their key straight from os.environ; .env only exists in
+    # the project, so put it there or they always look unauthenticated.
+    _load_dotenv_for(env_var)
     try:
         mod = __import__(mod_name, fromlist=[cls_name])
     except ImportError:
@@ -140,13 +163,19 @@ def build(name: str, setup_script: str | None = None):
     env_var = PROVIDERS[name][3]
     factory = _FACTORIES[name]
     try:
-        backend = factory(_import_provider(name))
+        live = factory(_import_provider(name))
     except SandboxUnavailable:
         raise
     except Exception as e:  # noqa: BLE001 - providers raise their own types
         raise SandboxUnavailable(
             f"could not start the {name} sandbox: {type(e).__name__}: {e}\n  check {env_var} in .env"
         ) from None
+
+    # The SDK object is a live sandbox, not a deepagents backend: it has no
+    # ls/read/grep, which is what the agent actually calls.
+    from .sandbox_backend import SdkSandboxBackend
+
+    backend = live if hasattr(live, "execute") and hasattr(live, "ls") else SdkSandboxBackend(live, name)
 
     if setup_script:
         try:
