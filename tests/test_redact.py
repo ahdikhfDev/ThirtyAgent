@@ -64,6 +64,25 @@ def test_tool_output_is_redacted_end_to_end(tmp_path: Path, monkeypatch):
     assert "redacted" in joined
 
 
+def test_no_mojibake_in_source_files():
+    """Regression: the palette searchbar shipped with U+00E2 U+2013 U+008F -- the
+    UTF-8 bytes of U+258F stored as latin-1. It rendered as 'a-<8f>' garbage."""
+    import pathlib
+
+    bad = chr(0xE2) + chr(0x2013) + chr(0x8F)
+    for p in list(pathlib.Path("minicode").glob("*.py")) + list(pathlib.Path("tests").glob("*.py")):
+        s = p.read_text(encoding="utf-8")
+        assert bad not in s, f"{p} contains mojibake"
+        assert chr(0xE2) not in s, f"{p} contains a stray latin-1 e-acute"
+
+
+def test_use_utf8_console_is_callable_and_safe():
+    """It runs before any output; it must never raise, even with no console."""
+    from minicode.cli import use_utf8_console
+
+    use_utf8_console()  # must not raise
+
+
 def test_card_title_is_redacted(tmp_path: Path, monkeypatch):
     import minicode.cli as C
 

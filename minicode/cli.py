@@ -32,6 +32,34 @@ from .usage import Usage, enable_tracing, tracing_enabled, tracing_status
 # Masks .env secret values from anything the agent prints or stores.
 _redactor = SecretRedactor()
 
+
+def use_utf8_console() -> None:
+    """Windows consoles default to CP437, where box-drawing and block glyphs
+    (─ ▏ ▸ ● …) do not exist and arrive as mojibake like 'a-<8f>'. Switch the
+    code page to UTF-8 before a single character is written, and let Python
+    replace anything genuinely unencodable rather than crash on it.
+    """
+    import sys
+
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+            ctypes.windll.kernel32.SetConsoleCP(65001)
+        except Exception:  # noqa: BLE001 - not a real console, or locked down
+            return _reconfigure_streams(sys)
+    _reconfigure_streams(sys)
+
+
+def _reconfigure_streams(sys) -> None:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            continue
+
+
 app = typer.Typer(add_completion=False)
 console = Console(theme=RICH_THEME)
 
@@ -88,7 +116,7 @@ def _fold(body: str) -> list[str]:
     keep = EXPANDED_LINES if _expand_all else COLLAPSED_LINES
     hidden = len(lines) - keep
     tail = lines[-keep:] if not _expand_all else lines[:keep]
-    return [f"… {hidden} earlier lines ⟦Ctrl+O: Expand⟧", *tail]
+    return [f"… {hidden} earlier lines [Ctrl+O: Expand]", *tail]
 
 
 HELP = """\
@@ -1251,6 +1279,7 @@ def run(
     resume: bool = typer.Option(False, "--resume", "-c", help="Continue the latest session here."),
 ) -> None:
     """Coding agent in your terminal."""
+    use_utf8_console()
     root = cwd.resolve()
     # Import cost plus building the model and opening the checkpointer takes
     # ~5s; without this line the terminal just sits blank and the first thing the

@@ -193,7 +193,7 @@ def _layout_for(items: list[Entry], title: str, state: PaletteState) -> Layout:
         )
 
     def searchbar() -> FormattedText:
-        return _ft([("class:cursor", " /" + state.needle + "â–")])
+        return _ft([("class:cursor", " /" + state.needle + "|")])
 
     def body() -> FormattedText:
         return _ft(render(state, width, title=title))
